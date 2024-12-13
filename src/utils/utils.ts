@@ -9,6 +9,9 @@ export const formatter: Intl.DateTimeFormat = new Intl.DateTimeFormat(I18N?.lang
 
 export const getFormattedDate = (date: Date): string => (date ? formatter.format(date) : '');
 
+
+
+
 export const trim = (str = '', ch?: string) => {
   let start = 0,
     end = str.length || 0;

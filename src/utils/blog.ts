@@ -1,67 +1,18 @@
 import type { PaginateFunction } from 'astro';
-import { getCollection, render } from 'astro:content';
-import type { CollectionEntry } from 'astro:content';
 import type { Post } from '~/types';
 import { APP_BLOG } from 'astrowind:config';
-import { cleanSlug, trimSlash, BLOG_BASE, POST_PERMALINK_PATTERN, CATEGORY_BASE, TAG_BASE } from './permalinks';
+import { BLOG_BASE, CATEGORY_BASE, TAG_BASE } from './permalinks';
 
-const generatePermalink = async ({
-  id,
-  slug,
-  publishDate,
-  category,
-}: {
-  id: string;
-  slug: string;
-  publishDate: Date;
-  category: string | undefined;
-}) => {
-  const year = String(publishDate.getFullYear()).padStart(4, '0');
-  const month = String(publishDate.getMonth() + 1).padStart(2, '0');
-  const day = String(publishDate.getDate()).padStart(2, '0');
-  const hour = String(publishDate.getHours()).padStart(2, '0');
-  const minute = String(publishDate.getMinutes()).padStart(2, '0');
-  const second = String(publishDate.getSeconds()).padStart(2, '0');
 
-  const permalink = POST_PERMALINK_PATTERN.replace('%slug%', slug)
-    .replace('%id%', id)
-    .replace('%category%', category || '')
-    .replace('%year%', year)
-    .replace('%month%', month)
-    .replace('%day%', day)
-    .replace('%hour%', hour)
-    .replace('%minute%', minute)
-    .replace('%second%', second);
+const getNormalizedPost = async (post): Promise<Post> => {
+  //const { id, data } = post;
+  const id = String(post.id);
 
-  return permalink
-    .split('/')
-    .map((el) => trimSlash(el))
-    .filter((el) => !!el)
-    .join('/');
-};
+  const slug = post.slug; // cleanSlug(rawSlug.split('/').pop());
+  const publishDate = new Date(post.publishDate);
+  const updateDate =  new Date(post.updateDate || post.publishDate); ;
 
-const getNormalizedPost = async (post: CollectionEntry<'post'>): Promise<Post> => {
-  const { id, data } = post;
-  const { Content, remarkPluginFrontmatter } = await render(post);
-
-  const {
-    publishDate: rawPublishDate = new Date(),
-    updateDate: rawUpdateDate,
-    title,
-    excerpt,
-    image,
-    tags: rawTags = [],
-    category: rawCategory,
-    author,
-    draft = false,
-    metadata = {},
-  } = data;
-
-  const slug = cleanSlug(id); // cleanSlug(rawSlug.split('/').pop());
-  const publishDate = new Date(rawPublishDate);
-  const updateDate = rawUpdateDate ? new Date(rawUpdateDate) : undefined;
-
-  const category = rawCategory
+  /*const category = rawCategory
     ? {
         slug: cleanSlug(rawCategory),
         title: rawCategory,
@@ -71,38 +22,45 @@ const getNormalizedPost = async (post: CollectionEntry<'post'>): Promise<Post> =
   const tags = rawTags.map((tag: string) => ({
     slug: cleanSlug(tag),
     title: tag,
-  }));
+  }));*/
+  const category = post.category;
+  const tags = post.tags;
 
   return {
     id: id,
     slug: slug,
-    permalink: await generatePermalink({ id, slug, publishDate, category: category?.slug }),
+    permalink: post.permalink,
 
     publishDate: publishDate,
     updateDate: updateDate,
 
-    title: title,
-    excerpt: excerpt,
-    image: image,
+    title: post.title,
+    excerpt: post.excerpt,
+    image: post.image,
 
     category: category,
     tags: tags,
-    author: author,
+    author: post.author,
 
-    draft: draft,
+    draft: post.draft,
 
-    metadata,
+    metadata:{},
 
-    Content: Content,
+    Content: post.content,
     // or 'content' in case you consume from API
 
-    readingTime: remarkPluginFrontmatter?.readingTime,
+    readingTime: 0,
   };
 };
 
 const load = async function (): Promise<Array<Post>> {
-  const posts = await getCollection('post');
+  //const posts = await getCollection('post');
+  //const normalizedPosts = posts.map(async (post) => await getNormalizedPost(post));
+  const posts = await fetch(
+    'https://wordpress-749572-5061863.cloudwaysapps.com/wp-json/miapi/v1/posts'
+  ).then((res) => res.json());
   const normalizedPosts = posts.map(async (post) => await getNormalizedPost(post));
+  console.log(normalizedPosts);
 
   const results = (await Promise.all(normalizedPosts))
     .sort((a, b) => b.publishDate.valueOf() - a.publishDate.valueOf())
@@ -127,6 +85,7 @@ export const blogCategoryRobots = APP_BLOG.category.robots;
 export const blogTagRobots = APP_BLOG.tag.robots;
 
 export const blogPostsPerPage = APP_BLOG?.postsPerPage;
+
 
 /** */
 export const fetchPosts = async (): Promise<Array<Post>> => {
